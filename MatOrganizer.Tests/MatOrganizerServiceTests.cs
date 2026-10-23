@@ -1,8 +1,8 @@
 using ClosedXML.Excel;
 
-namespace MatRename.Tests;
+namespace MatOrganizer.Tests;
 
-public sealed class MatRenameServiceTests : IDisposable
+public sealed class MatOrganizerServiceTests : IDisposable
 {
     private readonly string _temporaryDirectory = Path.Combine(Path.GetTempPath(), $"matrename-test-{Guid.NewGuid():N}");
 
@@ -18,7 +18,7 @@ public sealed class MatRenameServiceTests : IDisposable
         File.WriteAllBytes(namedSource, namedBytes);
         File.WriteAllBytes(unnamedSource, unnamedBytes);
 
-        var result = MatRenameService.CreateCopiesAndManifest(
+        var result = MatOrganizerService.CreateCopiesAndManifest(
             outputDirectory,
             [
                 new MatFileEntry(namedSource) { Slot = new ProtocolSlot(1, 1) },
@@ -47,7 +47,7 @@ public sealed class MatRenameServiceTests : IDisposable
     [InlineData("exp_d3.0r2.mat", 3, 2)]
     public void TryGetSlotFromFileName_reads_the_day_and_rat(string fileName, int expectedDay, int expectedRat)
     {
-        var found = MatRenameService.TryGetSlotFromFileName(fileName, out var slot);
+        var found = MatOrganizerService.TryGetSlotFromFileName(fileName, out var slot);
 
         Assert.True(found);
         Assert.Equal(new ProtocolSlot(expectedDay, expectedRat), slot);

@@ -1,7 +1,7 @@
 ﻿using Avalonia;
 using System;
 
-namespace MatRename;
+namespace MatOrganizer;
 
 class Program
 {

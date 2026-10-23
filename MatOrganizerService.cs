@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using ClosedXML.Excel;
 
-namespace MatRename;
+namespace MatOrganizer;
 
 internal sealed record ProtocolSlot(int Day, int Rat)
 {
@@ -26,7 +26,7 @@ internal sealed record RenameRecord(
 
 internal sealed record RenameResult(int FileCount, string ManifestPath);
 
-internal static partial class MatRenameService
+internal static partial class MatOrganizerService
 {
     private const string ManifestFileName = "relacion_renombrado.xlsx";
 

@@ -4,7 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 
-namespace MatRename;
+namespace MatOrganizer;
 
 public partial class MainWindow : Window
 {
@@ -107,7 +107,7 @@ public partial class MainWindow : Window
         StatusText.Text = "Creando copias .mat y el Excel de relación…";
         try
         {
-            var result = await Task.Run(() => MatRenameService.CreateCopiesAndManifest(_outputDirectory, _entries));
+            var result = await Task.Run(() => MatOrganizerService.CreateCopiesAndManifest(_outputDirectory, _entries));
             StatusText.Text = $"Listo: {result.FileCount} archivo(s) .mat y relación_renombrado.xlsx creados.";
         }
         catch (Exception exception)
@@ -191,7 +191,7 @@ public partial class MainWindow : Window
             }
 
             var entry = new MatFileEntry(path);
-            if (MatRenameService.TryGetSlotFromFileName(entry.FileName, out var slot) &&
+            if (MatOrganizerService.TryGetSlotFromFileName(entry.FileName, out var slot) &&
                 slot is not null &&
                 slot.Day <= _dayCount &&
                 slot.Rat <= _ratCount &&

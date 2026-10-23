@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="MatRename.MainWindow"
-        Title="MatRename"
+        x:Class="MatOrganizer.MainWindow"
+        Title="MatOrganizer"
         Width="1280"
         Height="760"
         MinWidth="900"
@@ -9,7 +9,7 @@
         WindowStartupLocation="CenterScreen">
   <Grid Margin="26" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="16">
     <StackPanel Spacing="5">
-      <TextBlock FontSize="30" FontWeight="SemiBold" Text="MatRename" />
+      <TextBlock FontSize="30" FontWeight="SemiBold" Text="MatOrganizer" />
       <TextBlock Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
                  Text="Organiza sesiones por día y rata, crea copias .mat con el nombre corregido y genera su relación en Excel." />
     </StackPanel>
@@ -76,7 +76,7 @@
       <TextBlock x:Name="OutputFolderText"
                  VerticalAlignment="Center"
                  Text="Carpeta de salida: sin seleccionar" />
-      <Button Grid.Column="1" Click="ChooseOutputFolderButton_Click" Content="Elegir carpeta…" />
+      <Button Grid.Column="1" Click="ChooseOutputFolderButton_Click" Content="Seleccionar folder final" />
       <Button x:Name="CreateButton"
               Grid.Column="2"
               Click="CreateButton_Click"

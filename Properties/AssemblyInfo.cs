@@ -1,3 +1,3 @@
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("MatRename.Tests")]
+[assembly: InternalsVisibleTo("MatOrganizer.Tests")]
