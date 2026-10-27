@@ -4,7 +4,7 @@
 
 MatOrganizer es una aplicación de escritorio multiplataforma para organizar archivos de sesiones conductuales por día y rata. Crea copias renombradas de datos de MATLAB y archivos de video, y después genera un Excel que relaciona cada nombre original con su nombre nuevo.
 
-[English](README.md) | [Español](README.es.md)
+[English](README.md) · [Español](README.es.md)
 
 ## Funciones
 
@@ -39,6 +39,12 @@ Por ejemplo, `01-26`, fase `dis`, día 1, rata 4 y un archivo MP4 de origen prod
 exp_0126_dis_d1r4.mp4
 ```
 
+La carpeta de salida también recibe `relacion_renombrado.xlsx`. La hoja `Relación` guarda el archivo original, el nuevo nombre, el día y rata asignados, el tipo de archivo y el resultado.
+
+## Documentación
+
+- [Documentación técnica](docs/README.md): contrato de nombres, comportamiento de las copias, garantías de seguridad, arquitectura y alcance de las pruebas.
+
 ## Desarrollo
 
 Requisito: SDK de .NET 10. Avalonia proporciona la interfaz de escritorio multiplataforma.
@@ -55,6 +61,7 @@ dotnet test MatOrganizer.sln
 | --- | --- |
 | `src/MatOrganizer` | Código de la aplicación Avalonia, vistas, recursos y configuración del proyecto. |
 | `tests/MatOrganizer.Tests` | Pruebas unitarias de nombres, copias, manifiestos y progreso. |
+| `docs` | Documentación técnica del flujo de trabajo y del código. |
 | `packaging/macos` | Metadatos del paquete de aplicación para macOS. |
 | `scripts` | Scripts locales para empaquetar releases. |
 

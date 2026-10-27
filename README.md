@@ -4,7 +4,7 @@
 
 MatOrganizer is a cross-platform desktop app for organizing behavioral-session files by day and rat. It creates renamed copies of MATLAB data and video files, then writes an Excel manifest that records the original and new filenames.
 
-[English](README.md) | [Español](README.es.md)
+[English](README.md) · [Español](README.es.md)
 
 ## Features
 
@@ -39,6 +39,12 @@ For example, `01-26`, phase `dis`, day 1, rat 4, and an MP4 source file produce:
 exp_0126_dis_d1r4.mp4
 ```
 
+The output folder also receives `relacion_renombrado.xlsx`. Its `Relación` sheet records the original filename, new filename, assigned day, assigned rat, file type, and result.
+
+## Documentation
+
+- [Technical documentation](docs/README.md): naming contract, copy behavior, safety guarantees, architecture, and test scope.
+
 ## Development
 
 Requirements: the .NET 10 SDK. Avalonia provides the cross-platform desktop interface.
@@ -55,6 +61,7 @@ dotnet test MatOrganizer.sln
 | --- | --- |
 | `src/MatOrganizer` | Avalonia application source, views, assets, and project configuration. |
 | `tests/MatOrganizer.Tests` | Unit tests for file naming, copying, manifests, and progress reporting. |
+| `docs` | Technical documentation for the workflow and codebase. |
 | `packaging/macos` | macOS application bundle metadata. |
 | `scripts` | Local release-packaging scripts. |
 
