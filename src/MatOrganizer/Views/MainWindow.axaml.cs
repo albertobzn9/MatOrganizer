@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using MatOrganizer.Services;
 
@@ -10,15 +11,72 @@ namespace MatOrganizer.Views;
 public partial class MainWindow : Window
 {
     private readonly List<MatFileEntry> _entries = [];
+    private readonly AppLocalizer _localizer;
     private int _dayCount = 10;
     private int _ratCount = 1;
     private string? _outputDirectory;
+    private bool _applyingLanguage;
 
     public MainWindow()
     {
         InitializeComponent();
-        StatusText.Text = "Agrega archivos .mat para comenzar.";
+        _localizer = AppLocalizer.Current;
+        _localizer.LanguageChanged += Localizer_LanguageChanged;
+        Closed += (_, _) => _localizer.LanguageChanged -= Localizer_LanguageChanged;
+        ApplyLocalizedText();
+        StatusText.Text = _localizer.Get("InitialStatus");
         RefreshView();
+    }
+
+    private void Localizer_LanguageChanged(object? sender, EventArgs eventArgs)
+    {
+        ApplyLocalizedText();
+        RefreshView();
+    }
+
+    private void ApplyLocalizedText()
+    {
+        SubtitleText.Text = _localizer.Get("Subtitle");
+        InstructionsText.Text = _localizer.Get("Instructions");
+        AddLabelText.Text = _localizer.Get("Add");
+        SelectFilesButton.Content = _localizer.Format("AddFiles", GetSelectedInputFileType());
+        DeselectButton.Content = _localizer.Get("Deselect");
+        RemoveButton.Content = _localizer.Get("Remove");
+        DaysLabelText.Text = _localizer.Get("Days");
+        RatsLabelText.Text = _localizer.Get("Rats");
+        UpdateGridButton.Content = _localizer.Get("UpdateGrid");
+        MonthYearLabelText.Text = _localizer.Get("MonthYear");
+        PhaseLabelText.Text = _localizer.Get("Phase");
+        CopyLabelText.Text = _localizer.Get("Copy");
+        ChooseOutputFolderButton.Content = _localizer.Get("ChooseOutputFolder");
+        CreateButton.Content = _localizer.Get("CreateCopies");
+        OutputFolderText.Text = _outputDirectory is null
+            ? _localizer.Get("OutputFolderNotSelected")
+            : _localizer.Format("OutputFolder", _outputDirectory);
+
+        _applyingLanguage = true;
+        LanguageToggleButton.IsChecked = _localizer.CurrentLanguage == AppLanguage.English;
+        _applyingLanguage = false;
+        UpdateLanguageToggleAppearance();
+    }
+
+    private void LanguageToggleButton_IsCheckedChanged(object? sender, RoutedEventArgs eventArgs)
+    {
+        if (!_applyingLanguage)
+        {
+            _localizer.SetLanguage(LanguageToggleButton.IsChecked == true
+                ? AppLanguage.English
+                : AppLanguage.Spanish);
+        }
+    }
+
+    private void UpdateLanguageToggleAppearance()
+    {
+        var englishSelected = _localizer.CurrentLanguage == AppLanguage.English;
+        EnglishLanguageText.FontWeight = englishSelected ? FontWeight.Bold : FontWeight.Normal;
+        SpanishLanguageText.FontWeight = englishSelected ? FontWeight.Normal : FontWeight.Bold;
+        EnglishLanguageText.Foreground = new SolidColorBrush(Color.Parse(englishSelected ? "#0F6CBD" : "#6B7280"));
+        SpanishLanguageText.Foreground = new SolidColorBrush(Color.Parse(englishSelected ? "#6B7280" : "#0F6CBD"));
     }
 
     private async void SelectFilesButton_Click(object? sender, RoutedEventArgs eventArgs)
@@ -26,11 +84,11 @@ public partial class MainWindow : Window
         var extension = GetSelectedInputFileType();
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = $"Agregar archivos {extension}",
+            Title = _localizer.Format("AddFilesTitle", extension),
             AllowMultiple = true,
             FileTypeFilter =
             [
-                new FilePickerFileType($"Archivos {extension}") { Patterns = [$"*{extension}"] }
+                new FilePickerFileType(_localizer.Format("FilesOfType", extension)) { Patterns = [$"*{extension}"] }
             ]
         });
 
@@ -45,14 +103,14 @@ public partial class MainWindow : Window
         }
 
         _entries.Remove(entry);
-        StatusText.Text = $"Se quitó {entry.FileName} de la lista.";
+        StatusText.Text = _localizer.Format("FileRemoved", entry.FileName);
         RefreshView();
     }
 
     private void DeselectButton_Click(object? sender, RoutedEventArgs eventArgs)
     {
         UnassignedListBox.SelectedItem = null;
-        StatusText.Text = "No hay ningún archivo seleccionado.";
+        StatusText.Text = _localizer.Get("NoFileSelected");
         UpdateButtons();
     }
 
@@ -61,20 +119,20 @@ public partial class MainWindow : Window
         if (!int.TryParse(DayCountTextBox.Text, out var days) || days < 1 ||
             !int.TryParse(RatCountTextBox.Text, out var rats) || rats < 1)
         {
-            StatusText.Text = "Días y ratas deben ser números mayores que cero.";
+            StatusText.Text = _localizer.Get("DaysRatsPositive");
             return;
         }
 
         if (_entries.Any(entry => entry.Slot is not null &&
                                   (entry.Slot.Day > days || entry.Slot.Rat > rats)))
         {
-            StatusText.Text = "No puedes reducir la cuadrícula mientras haya archivos fuera del nuevo límite.";
+            StatusText.Text = _localizer.Get("GridCannotReduce");
             return;
         }
 
         _dayCount = days;
         _ratCount = rats;
-        StatusText.Text = $"Cuadrícula actualizada: {_dayCount} día(s), {_ratCount} rata(s).";
+        StatusText.Text = _localizer.Format("GridUpdated", _dayCount, _ratCount);
         RefreshView();
     }
 
@@ -82,7 +140,7 @@ public partial class MainWindow : Window
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = "Elegir carpeta de salida",
+            Title = _localizer.Get("ChooseOutputTitle"),
             AllowMultiple = false
         });
         var folder = folders.FirstOrDefault()?.TryGetLocalPath();
@@ -92,8 +150,8 @@ public partial class MainWindow : Window
         }
 
         _outputDirectory = folder;
-        OutputFolderText.Text = $"Carpeta de salida: {_outputDirectory}";
-        StatusText.Text = "Carpeta de salida seleccionada.";
+        OutputFolderText.Text = _localizer.Format("OutputFolder", _outputDirectory);
+        StatusText.Text = _localizer.Get("OutputFolderSelected");
         UpdateButtons();
     }
 
@@ -101,14 +159,14 @@ public partial class MainWindow : Window
     {
         if (_outputDirectory is null)
         {
-            StatusText.Text = "Elige una carpeta de salida antes de crear los archivos.";
+            StatusText.Text = _localizer.Get("ChooseOutputFirst");
             return;
         }
 
         var copyOptions = GetCopyOptions();
         if (!copyOptions.HasSelectedTypes)
         {
-            StatusText.Text = "Selecciona por lo menos un tipo de archivo para copiar.";
+            StatusText.Text = _localizer.Get("CopyAtLeastOne");
             return;
         }
 
@@ -127,12 +185,12 @@ public partial class MainWindow : Window
         ProgressPanel.IsVisible = true;
         CurrentFileProgressBar.Value = 0;
         TotalProgressBar.Value = 0;
-        CurrentFileProgressText.Text = "Preparando la copia…";
-        TotalProgressText.Text = "Progreso total: 0%";
+        CurrentFileProgressText.Text = _localizer.Get("PreparingCopy");
+        TotalProgressText.Text = _localizer.Get("TotalProgressInitial");
         try
         {
             var preview = await Task.Run(() => MatOrganizerService.BuildRecords(_outputDirectory, _entries, namingOptions, copyOptions));
-            StatusText.Text = $"Copiando {preview.Count} archivo(s); los videos pueden tardar…";
+            StatusText.Text = _localizer.Format("Copying", preview.Count);
             var progress = new Progress<CopyProgress>(UpdateCopyProgress);
             var result = await MatOrganizerService.CreateCopiesAndManifestAsync(
                 _outputDirectory,
@@ -140,11 +198,11 @@ public partial class MainWindow : Window
                 namingOptions,
                 copyOptions,
                 progress);
-            StatusText.Text = $"Listo: {result.MatCount} .mat, {result.Mp4Count} .mp4, {result.MkvCount} .mkv y relación_renombrado.xlsx creados.";
+            StatusText.Text = _localizer.Format("Completed", result.MatCount, result.Mp4Count, result.MkvCount);
         }
         catch (Exception exception)
         {
-            StatusText.Text = $"No se pudo completar la creación: {exception.Message}";
+            StatusText.Text = _localizer.Format("CreateFailed", exception.Message);
         }
         finally
         {
@@ -156,7 +214,7 @@ public partial class MainWindow : Window
     {
         if (UnassignedListBox.SelectedItem is MatFileEntry entry)
         {
-            StatusText.Text = $"{entry.FileName} seleccionado. Ahora haz clic en la celda Día–Rata que le corresponde.";
+            StatusText.Text = _localizer.Format("SelectedClickSlot", entry.FileName);
         }
 
         UpdateButtons();
@@ -180,11 +238,11 @@ public partial class MainWindow : Window
         }
 
         var extension = GetSelectedInputFileType();
-        SelectFilesButton.Content = $"Agregar archivos {extension}…";
+        SelectFilesButton.Content = _localizer.Format("AddFiles", extension);
         CopyMatCheckBox.IsChecked = extension == ".mat";
         CopyMp4CheckBox.IsChecked = extension == ".mp4";
         CopyMkvCheckBox.IsChecked = extension == ".mkv";
-        StatusText.Text = $"Selecciona archivos {extension}; puedes marcar más tipos abajo si también quieres copiar sus archivos con el mismo nombre.";
+        StatusText.Text = _localizer.Format("InputTypeSelected", extension);
         UpdateButtons();
     }
 
@@ -207,13 +265,13 @@ public partial class MainWindow : Window
         if (assignedEntry is not null)
         {
             assignedEntry.Slot = null;
-            StatusText.Text = $"{assignedEntry.FileName} volvió a la lista. Selecciónalo y haz clic en su nueva celda.";
+            StatusText.Text = _localizer.Format("ReturnedToList", assignedEntry.FileName);
             RefreshView();
             UnassignedListBox.SelectedItem = assignedEntry;
             return;
         }
 
-        StatusText.Text = "Selecciona primero un archivo de la lista izquierda.";
+        StatusText.Text = _localizer.Get("SelectLeftFirst");
     }
 
     private void MoveToSlot(MatFileEntry entry, ProtocolSlot destination)
@@ -222,18 +280,18 @@ public partial class MainWindow : Window
         if (occupied is null || occupied == entry)
         {
             entry.Slot = destination;
-            StatusText.Text = $"{entry.FileName} se asignó a {destination.DisplayName}.";
+            StatusText.Text = _localizer.Format("AssignedTo", entry.FileName, destination.DisplayName);
         }
         else if (entry.Slot is null)
         {
             occupied.Slot = null;
             entry.Slot = destination;
-            StatusText.Text = $"{entry.FileName} se asignó a {destination.DisplayName}; {occupied.FileName} volvió a la lista sin asignar.";
+            StatusText.Text = _localizer.Format("AssignedWithReturn", entry.FileName, destination.DisplayName, occupied.FileName);
         }
         else
         {
             (entry.Slot, occupied.Slot) = (occupied.Slot, entry.Slot);
-            StatusText.Text = "Las dos sesiones intercambiaron posición.";
+            StatusText.Text = _localizer.Get("SessionsSwapped");
         }
 
         RefreshView();
@@ -268,8 +326,8 @@ public partial class MainWindow : Window
         if (added > 0)
         {
             StatusText.Text = automaticallyAssigned > 0
-                ? $"Se agregaron {added} archivo(s); {automaticallyAssigned} se asignaron automáticamente por su nombre."
-                : $"Se agregaron {added} archivo(s) {selectedExtension}.";
+                ? _localizer.Format("FilesAddedAuto", added, automaticallyAssigned)
+                : _localizer.Format("FilesAdded", added, selectedExtension);
             RefreshView();
         }
     }
@@ -277,7 +335,7 @@ public partial class MainWindow : Window
     private void RefreshView()
     {
         UnassignedListBox.ItemsSource = _entries.Where(entry => entry.Slot is null).OrderBy(entry => entry.FileName).ToList();
-        UnassignedTitleText.Text = $"Sin asignar ({_entries.Count(entry => entry.Slot is null)})";
+        UnassignedTitleText.Text = _localizer.Format("Unassigned", _entries.Count(entry => entry.Slot is null));
         RebuildAssignmentGrid();
         UpdateButtons();
     }
@@ -300,15 +358,16 @@ public partial class MainWindow : Window
             AssignmentGrid.RowDefinitions.Add(new RowDefinition(new GridLength(92)));
         }
 
-        AddCell(new TextBlock { Text = "Rata / día", FontWeight = Avalonia.Media.FontWeight.SemiBold, Margin = new Thickness(8) }, 0, 0);
+        AddCell(new TextBlock { Text = _localizer.Get("RatDay"), FontWeight = FontWeight.SemiBold, Margin = new Thickness(8) }, 0, 0);
         for (var day = 1; day <= _dayCount; day++)
         {
-            AddCell(new TextBlock { Text = day == 10 ? "Prueba" : $"Día {day}", FontWeight = Avalonia.Media.FontWeight.SemiBold, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, Margin = new Thickness(8) }, 0, day);
+            var label = day == 10 ? _localizer.Get("Test") : _localizer.Format("Day", day);
+            AddCell(new TextBlock { Text = label, FontWeight = FontWeight.SemiBold, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, Margin = new Thickness(8) }, 0, day);
         }
 
         for (var rat = 1; rat <= _ratCount; rat++)
         {
-            AddCell(new TextBlock { Text = $"Rata {rat}", FontWeight = Avalonia.Media.FontWeight.SemiBold, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Margin = new Thickness(8) }, rat, 0);
+            AddCell(new TextBlock { Text = _localizer.Format("Rat", rat), FontWeight = FontWeight.SemiBold, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Margin = new Thickness(8) }, rat, 0);
             for (var day = 1; day <= _dayCount; day++)
             {
                 AddSlotCell(day, rat);
@@ -328,19 +387,18 @@ public partial class MainWindow : Window
             MinHeight = 68,
             CornerRadius = new CornerRadius(6),
             BorderThickness = new Thickness(1),
-            BorderBrush = Avalonia.Media.Brushes.Gray,
-            Background = entry is null ? Avalonia.Media.Brushes.Transparent : Avalonia.Media.Brushes.LightSteelBlue,
+            BorderBrush = Brushes.Gray,
+            Background = entry is null ? Brushes.Transparent : Brushes.LightSteelBlue,
             Child = new TextBlock
             {
-                Text = entry?.FileName ?? "Arrastra aquí",
-                TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                TextAlignment = Avalonia.Media.TextAlignment.Center,
+                Text = entry?.FileName ?? _localizer.Get("DropHere"),
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Center,
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
             }
         };
 
         cell.PointerPressed += Slot_PointerPressed;
-
         AddCell(cell, rat, day);
     }
 
@@ -366,7 +424,7 @@ public partial class MainWindow : Window
         CreateButton.IsEnabled = _outputDirectory is not null &&
                                  _entries.Any(entry => entry.Slot is not null) &&
                                  GetCopyOptions().HasSelectedTypes &&
-                                 SessionNamingOptions.IsValid(MonthYearTextBox?.Text, GetSelectedPhase());
+                                 SessionNamingOptions.IsValid(MonthYearTextBox.Text, GetSelectedPhase());
     }
 
     private CopyOptions GetCopyOptions() => new(
@@ -378,7 +436,7 @@ public partial class MainWindow : Window
         (InputFileTypeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? ".mat";
 
     private string GetSelectedPhase() =>
-        (PhaseComboBox?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? string.Empty;
+        (PhaseComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? string.Empty;
 
     private void UpdateCopyProgress(CopyProgress progress)
     {
@@ -391,8 +449,19 @@ public partial class MainWindow : Window
 
         CurrentFileProgressBar.Value = currentPercent;
         TotalProgressBar.Value = totalPercent;
-        CurrentFileProgressText.Text = $"Archivo {progress.CurrentFileNumber} de {progress.TotalFiles}: {progress.CurrentFileName} ({FormatBytes(progress.CurrentFileBytes)} de {FormatBytes(progress.CurrentFileLength)})";
-        TotalProgressText.Text = $"Progreso total: {progress.CompletedFiles} de {progress.TotalFiles} archivo(s) · {FormatBytes(progress.CompletedBytes)} de {FormatBytes(progress.TotalBytes)}";
+        CurrentFileProgressText.Text = _localizer.Format(
+            "CurrentFileProgress",
+            progress.CurrentFileNumber,
+            progress.TotalFiles,
+            progress.CurrentFileName,
+            FormatBytes(progress.CurrentFileBytes),
+            FormatBytes(progress.CurrentFileLength));
+        TotalProgressText.Text = _localizer.Format(
+            "TotalProgress",
+            progress.CompletedFiles,
+            progress.TotalFiles,
+            FormatBytes(progress.CompletedBytes),
+            FormatBytes(progress.TotalBytes));
     }
 
     private static string FormatBytes(long bytes)

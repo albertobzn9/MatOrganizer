@@ -5,7 +5,7 @@ namespace MatOrganizer.Services;
 
 internal sealed record ProtocolSlot(int Day, int Rat)
 {
-    public string DisplayName => $"Día {Day} · Rata {Rat}";
+    public string DisplayName => AppLocalizer.Current.Format("Slot", Day, Rat);
 }
 
 internal sealed class MatFileEntry(string sourcePath)
@@ -36,12 +36,12 @@ internal sealed record SessionNamingOptions(string Period, string Phase)
         if (string.IsNullOrWhiteSpace(monthYear) ||
             !Regex.IsMatch(monthYear.Trim(), @"^(0[1-9]|1[0-2])-?\d{2}$"))
         {
-            throw new InvalidOperationException("Mes-año debe tener el formato MM-AA o MMAA, por ejemplo 01-26 o 0126.");
+            throw new InvalidOperationException(AppLocalizer.Current.Get("InvalidMonthYear"));
         }
 
         if (string.IsNullOrWhiteSpace(phase) || !AllowedPhases.Contains(phase.Trim()))
         {
-            throw new InvalidOperationException("La fase debe ser cs, cp o dis.");
+            throw new InvalidOperationException(AppLocalizer.Current.Get("InvalidPhase"));
         }
 
         return new SessionNamingOptions(monthYear.Trim().Replace("-", string.Empty), phase.Trim());
@@ -135,7 +135,7 @@ internal static partial class MatOrganizerService
         var manifestPath = Path.Combine(outputDirectory, ManifestFileName);
         if (File.Exists(manifestPath))
         {
-            throw new InvalidOperationException($"Ya existe {ManifestFileName} en la carpeta de salida.");
+            throw new InvalidOperationException(AppLocalizer.Current.Format("ManifestExists", ManifestFileName));
         }
 
         var temporaryFiles = new List<string>();
@@ -207,25 +207,25 @@ internal static partial class MatOrganizerService
     {
         if (string.IsNullOrWhiteSpace(outputDirectory) || !Directory.Exists(outputDirectory))
         {
-            throw new InvalidOperationException("Selecciona una carpeta de salida válida.");
+            throw new InvalidOperationException(AppLocalizer.Current.Get("ValidOutputFolder"));
         }
 
         var assignedEntries = entries.Where(entry => entry.Slot is not null).ToList();
         if (assignedEntries.Count == 0)
         {
-            throw new InvalidOperationException("Asigna por lo menos un archivo a un día y una rata.");
+            throw new InvalidOperationException(AppLocalizer.Current.Get("AssignAtLeastOne"));
         }
 
         var selectedOptions = copyOptions ?? CopyOptions.MatOnly;
         if (!selectedOptions.HasSelectedTypes)
         {
-            throw new InvalidOperationException("Selecciona por lo menos un tipo de archivo para copiar.");
+            throw new InvalidOperationException(AppLocalizer.Current.Get("CopyAtLeastOne"));
         }
 
         var missingFile = assignedEntries.FirstOrDefault(entry => !File.Exists(entry.SourcePath));
         if (missingFile is not null)
         {
-            throw new FileNotFoundException($"No se encontró {missingFile.FileName}.", missingFile.SourcePath);
+            throw new FileNotFoundException(AppLocalizer.Current.Format("MissingInputFile", missingFile.FileName), missingFile.SourcePath);
         }
 
         var records = assignedEntries
@@ -237,7 +237,7 @@ internal static partial class MatOrganizerService
 
         if (records.Count == 0)
         {
-            throw new InvalidOperationException("No se encontraron archivos del tipo seleccionado para copiar.");
+            throw new InvalidOperationException(AppLocalizer.Current.Get("NoMatchingFiles"));
         }
 
         var duplicate = records
@@ -245,13 +245,13 @@ internal static partial class MatOrganizerService
             .FirstOrDefault(group => group.Count() > 1);
         if (duplicate is not null)
         {
-            throw new InvalidOperationException($"Dos archivos producirían el mismo nombre: {Path.GetFileName(duplicate.Key)}.");
+            throw new InvalidOperationException(AppLocalizer.Current.Format("DuplicateDestination", Path.GetFileName(duplicate.Key)));
         }
 
         var existing = records.FirstOrDefault(record => File.Exists(record.DestinationPath));
         if (existing is not null)
         {
-            throw new InvalidOperationException($"Ya existe {Path.GetFileName(existing.DestinationPath)} en la carpeta de salida.");
+            throw new InvalidOperationException(AppLocalizer.Current.Format("DestinationExists", Path.GetFileName(existing.DestinationPath)));
         }
 
         return records;

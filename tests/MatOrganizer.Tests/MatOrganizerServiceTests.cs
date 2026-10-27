@@ -115,7 +115,7 @@ public sealed class MatOrganizerServiceTests : IDisposable
             SessionNamingOptions.Create("05-26", "cp"),
             new CopyOptions(IncludeMat: false, IncludeMp4: true, IncludeMkv: true)));
 
-        Assert.Contains("No se encontraron", exception.Message);
+        Assert.Contains("No files", exception.Message);
     }
 
     [Theory]
