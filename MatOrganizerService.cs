@@ -24,7 +24,19 @@ internal sealed record RenameRecord(
     string DestinationPath,
     ProtocolSlot Slot);
 
-internal sealed record RenameResult(int FileCount, string ManifestPath);
+internal sealed record CopyOptions(bool IncludeMat, bool IncludeMp4, bool IncludeMkv)
+{
+    public static CopyOptions MatOnly { get; } = new(IncludeMat: true, IncludeMp4: false, IncludeMkv: false);
+
+    public bool HasSelectedTypes => IncludeMat || IncludeMp4 || IncludeMkv;
+}
+
+internal sealed record RenameResult(
+    int FileCount,
+    string ManifestPath,
+    int MatCount,
+    int Mp4Count,
+    int MkvCount);
 
 internal static partial class MatOrganizerService
 {
@@ -50,9 +62,10 @@ internal static partial class MatOrganizerService
 
     public static RenameResult CreateCopiesAndManifest(
         string outputDirectory,
-        IReadOnlyCollection<MatFileEntry> entries)
+        IReadOnlyCollection<MatFileEntry> entries,
+        CopyOptions? copyOptions = null)
     {
-        var records = BuildRecords(outputDirectory, entries);
+        var records = BuildRecords(outputDirectory, entries, copyOptions);
         var manifestPath = Path.Combine(outputDirectory, ManifestFileName);
         if (File.Exists(manifestPath))
         {
@@ -83,7 +96,12 @@ internal static partial class MatOrganizerService
             }
 
             File.Move(temporaryManifest, manifestPath);
-            return new RenameResult(records.Count, manifestPath);
+            return new RenameResult(
+                records.Count,
+                manifestPath,
+                records.Count(record => HasExtension(record.SourcePath, ".mat")),
+                records.Count(record => HasExtension(record.SourcePath, ".mp4")),
+                records.Count(record => HasExtension(record.SourcePath, ".mkv")));
         }
         catch
         {
@@ -103,7 +121,8 @@ internal static partial class MatOrganizerService
 
     public static IReadOnlyList<RenameRecord> BuildRecords(
         string outputDirectory,
-        IReadOnlyCollection<MatFileEntry> entries)
+        IReadOnlyCollection<MatFileEntry> entries,
+        CopyOptions? copyOptions = null)
     {
         if (string.IsNullOrWhiteSpace(outputDirectory) || !Directory.Exists(outputDirectory))
         {
@@ -116,6 +135,12 @@ internal static partial class MatOrganizerService
             throw new InvalidOperationException("Asigna por lo menos un archivo a un día y una rata.");
         }
 
+        var selectedOptions = copyOptions ?? CopyOptions.MatOnly;
+        if (!selectedOptions.HasSelectedTypes)
+        {
+            throw new InvalidOperationException("Selecciona por lo menos un tipo de archivo para copiar.");
+        }
+
         var missingFile = assignedEntries.FirstOrDefault(entry => !File.Exists(entry.SourcePath));
         if (missingFile is not null)
         {
@@ -123,13 +148,16 @@ internal static partial class MatOrganizerService
         }
 
         var records = assignedEntries
-            .Select(entry => new RenameRecord(
-                entry.SourcePath,
-                Path.Combine(outputDirectory, BuildFileName(entry.FileName, entry.Slot!)),
-                entry.Slot!))
+            .SelectMany(entry => BuildRecordsForEntry(outputDirectory, entry, selectedOptions))
             .OrderBy(record => record.Slot.Rat)
             .ThenBy(record => record.Slot.Day)
+            .ThenBy(record => Path.GetExtension(record.SourcePath), StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        if (records.Count == 0)
+        {
+            throw new InvalidOperationException("No se encontraron archivos del tipo seleccionado para copiar.");
+        }
 
         var duplicate = records
             .GroupBy(record => record.DestinationPath, StringComparer.OrdinalIgnoreCase)
@@ -146,6 +174,53 @@ internal static partial class MatOrganizerService
         }
 
         return records;
+    }
+
+    private static IEnumerable<RenameRecord> BuildRecordsForEntry(
+        string outputDirectory,
+        MatFileEntry entry,
+        CopyOptions copyOptions)
+    {
+        var sourcePaths = new List<string>();
+        if (copyOptions.IncludeMat)
+        {
+            sourcePaths.Add(entry.SourcePath);
+        }
+
+        if (copyOptions.IncludeMp4)
+        {
+            AddCompanionFile(entry.SourcePath, ".mp4", sourcePaths);
+        }
+
+        if (copyOptions.IncludeMkv)
+        {
+            AddCompanionFile(entry.SourcePath, ".mkv", sourcePaths);
+        }
+
+        return sourcePaths.Select(sourcePath => new RenameRecord(
+            sourcePath,
+            Path.Combine(outputDirectory, BuildFileName(Path.GetFileName(sourcePath), entry.Slot!)),
+            entry.Slot!));
+    }
+
+    private static void AddCompanionFile(string matPath, string extension, ICollection<string> sourcePaths)
+    {
+        var directory = Path.GetDirectoryName(matPath);
+        if (directory is null)
+        {
+            return;
+        }
+
+        var baseName = Path.GetFileNameWithoutExtension(matPath);
+        var companion = Directory.EnumerateFiles(directory)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(path =>
+                string.Equals(Path.GetFileNameWithoutExtension(path), baseName, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(Path.GetExtension(path), extension, StringComparison.OrdinalIgnoreCase));
+        if (companion is not null)
+        {
+            sourcePaths.Add(companion);
+        }
     }
 
     private static string BuildFileName(string sourceFileName, ProtocolSlot slot)
@@ -167,8 +242,9 @@ internal static partial class MatOrganizerService
         sheet.Cell(1, 2).Value = "Archivo nuevo";
         sheet.Cell(1, 3).Value = "Día asignado";
         sheet.Cell(1, 4).Value = "Rata asignada";
-        sheet.Cell(1, 5).Value = "Estado";
-        sheet.Range(1, 1, 1, 5).Style.Font.Bold = true;
+        sheet.Cell(1, 5).Value = "Tipo";
+        sheet.Cell(1, 6).Value = "Estado";
+        sheet.Range(1, 1, 1, 6).Style.Font.Bold = true;
 
         for (var row = 0; row < records.Count; row++)
         {
@@ -178,7 +254,8 @@ internal static partial class MatOrganizerService
             sheet.Cell(worksheetRow, 2).Value = Path.GetFileName(record.DestinationPath);
             sheet.Cell(worksheetRow, 3).Value = record.Slot.Day;
             sheet.Cell(worksheetRow, 4).Value = record.Slot.Rat;
-            sheet.Cell(worksheetRow, 5).Value = "Creado";
+            sheet.Cell(worksheetRow, 5).Value = Path.GetExtension(record.SourcePath).TrimStart('.').ToUpperInvariant();
+            sheet.Cell(worksheetRow, 6).Value = "Creado";
         }
 
         sheet.Columns().AdjustToContents();
@@ -192,4 +269,7 @@ internal static partial class MatOrganizerService
             File.Delete(path);
         }
     }
+
+    private static bool HasExtension(string filePath, string extension) =>
+        string.Equals(Path.GetExtension(filePath), extension, StringComparison.OrdinalIgnoreCase);
 }

@@ -103,12 +103,20 @@ public partial class MainWindow : Window
             return;
         }
 
+        var copyOptions = GetCopyOptions();
+        if (!copyOptions.HasSelectedTypes)
+        {
+            StatusText.Text = "Selecciona por lo menos un tipo de archivo para copiar.";
+            return;
+        }
+
         CreateButton.IsEnabled = false;
-        StatusText.Text = "Creando copias .mat y el Excel de relación…";
         try
         {
-            var result = await Task.Run(() => MatOrganizerService.CreateCopiesAndManifest(_outputDirectory, _entries));
-            StatusText.Text = $"Listo: {result.FileCount} archivo(s) .mat y relación_renombrado.xlsx creados.";
+            var preview = await Task.Run(() => MatOrganizerService.BuildRecords(_outputDirectory, _entries, copyOptions));
+            StatusText.Text = $"Copiando {preview.Count} archivo(s); los videos pueden tardar…";
+            var result = await Task.Run(() => MatOrganizerService.CreateCopiesAndManifest(_outputDirectory, _entries, copyOptions));
+            StatusText.Text = $"Listo: {result.MatCount} .mat, {result.Mp4Count} .mp4, {result.MkvCount} .mkv y relación_renombrado.xlsx creados.";
         }
         catch (Exception exception)
         {
@@ -125,6 +133,16 @@ public partial class MainWindow : Window
         if (UnassignedListBox.SelectedItem is MatFileEntry entry)
         {
             StatusText.Text = $"{entry.FileName} seleccionado. Ahora haz clic en la celda Día–Rata que le corresponde.";
+        }
+
+        UpdateButtons();
+    }
+
+    private void CopyOption_IsCheckedChanged(object? sender, RoutedEventArgs eventArgs)
+    {
+        if (CopyMatCheckBox is null || CopyMp4CheckBox is null || CopyMkvCheckBox is null)
+        {
+            return;
         }
 
         UpdateButtons();
@@ -296,6 +314,13 @@ public partial class MainWindow : Window
         var hasSelectedEntry = UnassignedListBox.SelectedItem is MatFileEntry;
         DeselectButton.IsEnabled = hasSelectedEntry;
         RemoveButton.IsEnabled = hasSelectedEntry;
-        CreateButton.IsEnabled = _outputDirectory is not null && _entries.Any(entry => entry.Slot is not null);
+        CreateButton.IsEnabled = _outputDirectory is not null &&
+                                 _entries.Any(entry => entry.Slot is not null) &&
+                                 GetCopyOptions().HasSelectedTypes;
     }
+
+    private CopyOptions GetCopyOptions() => new(
+        CopyMatCheckBox.IsChecked == true,
+        CopyMp4CheckBox.IsChecked == true,
+        CopyMkvCheckBox.IsChecked == true);
 }
