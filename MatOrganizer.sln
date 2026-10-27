@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MatOrganizer", "src\MatOrganizer\MatOrganizer.csproj", "{6B4625AF-1E6A-4832-A3DC-9B1F63489779}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MatOrganizer.Tests", "tests\MatOrganizer.Tests\MatOrganizer.Tests.csproj", "{E08639A6-EB1E-49C1-A222-65D3399AA3BB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6B4625AF-1E6A-4832-A3DC-9B1F63489779}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B4625AF-1E6A-4832-A3DC-9B1F63489779}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B4625AF-1E6A-4832-A3DC-9B1F63489779}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B4625AF-1E6A-4832-A3DC-9B1F63489779}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E08639A6-EB1E-49C1-A222-65D3399AA3BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E08639A6-EB1E-49C1-A222-65D3399AA3BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E08639A6-EB1E-49C1-A222-65D3399AA3BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E08639A6-EB1E-49C1-A222-65D3399AA3BB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

@@ -3,6 +3,7 @@ set -euo pipefail
 
 version="${1:?Uso: ./scripts/package-release.sh VERSION}"
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+project_file="$repository_root/src/MatOrganizer/MatOrganizer.csproj"
 publish_root="$repository_root/artifacts/publish/$version"
 release_root="$repository_root/artifacts/release/$version"
 mac_publish="$publish_root/macos-arm64"
@@ -21,7 +22,7 @@ fi
 
 mkdir -p "$publish_root" "$release_root"
 
-dotnet publish "$repository_root/MatOrganizer.csproj" \
+dotnet publish "$project_file" \
   -c Release \
   -r osx-arm64 \
   --self-contained true \
@@ -35,7 +36,7 @@ dotnet publish "$repository_root/MatOrganizer.csproj" \
 mkdir -p "$mac_app/Contents/MacOS" "$mac_app/Contents/Resources"
 ditto "$mac_publish" "$mac_app/Contents/MacOS"
 cp "$repository_root/packaging/macos/Info.plist" "$mac_app/Contents/Info.plist"
-cp "$repository_root/Assets/MatOrganizer.icns" "$mac_app/Contents/Resources/MatOrganizer.icns"
+cp "$repository_root/src/MatOrganizer/Assets/MatOrganizer.icns" "$mac_app/Contents/Resources/MatOrganizer.icns"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$mac_app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $version" "$mac_app/Contents/Info.plist"
 chmod +x "$mac_app/Contents/MacOS/MatOrganizer"
@@ -54,7 +55,7 @@ ln -s /Applications "$dmg_stage/Applications"
 hdiutil create -size 256m -volname "MatOrganizer $version" -srcfolder "$dmg_stage" -ov -format UDZO "$mac_dmg"
 hdiutil verify "$mac_dmg"
 
-dotnet publish "$repository_root/MatOrganizer.csproj" \
+dotnet publish "$project_file" \
   -c Release \
   -r win-x64 \
   --self-contained true \

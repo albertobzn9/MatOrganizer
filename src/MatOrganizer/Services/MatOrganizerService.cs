@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using ClosedXML.Excel;
 
-namespace MatOrganizer;
+namespace MatOrganizer.Services;
 
 internal sealed record ProtocolSlot(int Day, int Rat)
 {

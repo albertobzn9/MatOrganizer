@@ -3,8 +3,9 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using MatOrganizer.Services;
 
-namespace MatOrganizer;
+namespace MatOrganizer.Views;
 
 public partial class MainWindow : Window
 {

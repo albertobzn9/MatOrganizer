@@ -15,7 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../MatOrganizer.csproj" />
+    <ProjectReference Include="../../src/MatOrganizer/MatOrganizer.csproj" />
   </ItemGroup>
 
   <ItemGroup>

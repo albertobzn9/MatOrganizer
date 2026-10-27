@@ -1,6 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="MatOrganizer.MainWindow"
+        x:Class="MatOrganizer.Views.MainWindow"
         Title="MatOrganizer"
         Width="1280"
         Height="760"
