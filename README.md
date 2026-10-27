@@ -4,6 +4,8 @@
 
 MatOrganizer is a cross-platform desktop app for organizing behavioral-session files by day and rat. It creates renamed copies of MATLAB data and video files, then writes an Excel manifest that records the original and new filenames.
 
+[English](README.md) | [Español](README.es.md)
+
 ## Features
 
 - Assign each session to a day and rat interactively.
