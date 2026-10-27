@@ -92,12 +92,12 @@ public sealed class MatOrganizerServiceTests : IDisposable
         var records = MatOrganizerService.BuildRecords(
             outputDirectory,
             [new MatFileEntry(matPath) { Slot = new ProtocolSlot(1, 1) }],
-            SessionNamingOptions.Create("05-26", "CP"),
+            SessionNamingOptions.Create("05-26", "cp"),
             new CopyOptions(IncludeMat: false, IncludeMp4: true, IncludeMkv: true));
 
         var record = Assert.Single(records);
         Assert.Equal(mp4Path, record.SourcePath);
-        Assert.Equal(Path.Combine(outputDirectory, "exp_0526_CP_d1r1.mp4"), record.DestinationPath);
+        Assert.Equal(Path.Combine(outputDirectory, "exp_0526_cp_d1r1.mp4"), record.DestinationPath);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class MatOrganizerServiceTests : IDisposable
         var exception = Assert.Throws<InvalidOperationException>(() => MatOrganizerService.BuildRecords(
             outputDirectory,
             [new MatFileEntry(matPath) { Slot = new ProtocolSlot(1, 1) }],
-            SessionNamingOptions.Create("05-26", "CP"),
+            SessionNamingOptions.Create("05-26", "cp"),
             new CopyOptions(IncludeMat: false, IncludeMp4: true, IncludeMkv: true)));
 
         Assert.Contains("No se encontraron", exception.Message);
@@ -142,12 +142,12 @@ public sealed class MatOrganizerServiceTests : IDisposable
         var result = await MatOrganizerService.CreateCopiesAndManifestAsync(
             outputDirectory,
             [new MatFileEntry(videoPath) { Slot = new ProtocolSlot(3, 2) }],
-            SessionNamingOptions.Create("01-26", "S"),
+            SessionNamingOptions.Create("01-26", "cs"),
             new CopyOptions(IncludeMat: false, IncludeMp4: true, IncludeMkv: false),
             new InlineProgress<CopyProgress>(progressUpdates.Add));
 
         Assert.Equal(1, result.Mp4Count);
-        Assert.Equal(videoBytes, File.ReadAllBytes(Path.Combine(outputDirectory, "exp_0126_S_d3r2.mp4")));
+        Assert.Equal(videoBytes, File.ReadAllBytes(Path.Combine(outputDirectory, "exp_0126_cs_d3r2.mp4")));
         Assert.Equal(videoBytes, File.ReadAllBytes(videoPath));
         Assert.NotEmpty(progressUpdates);
         Assert.All(progressUpdates, update => Assert.Equal(videoBytes.Length, update.TotalBytes));
@@ -160,7 +160,8 @@ public sealed class MatOrganizerServiceTests : IDisposable
 
     [Theory]
     [InlineData("01-26", "dis", "0126", "dis")]
-    [InlineData("10-22", "CP", "1022", "CP")]
+    [InlineData("0126", "cs", "0126", "cs")]
+    [InlineData("10-22", "cp", "1022", "cp")]
     public void SessionNamingOptions_normalizes_the_period_without_the_hyphen(string monthYear, string phase, string expectedPeriod, string expectedPhase)
     {
         var naming = SessionNamingOptions.Create(monthYear, phase);

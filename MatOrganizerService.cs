@@ -28,20 +28,20 @@ internal sealed record SessionNamingOptions(string Period, string Phase)
 {
     private static readonly HashSet<string> AllowedPhases = new(StringComparer.Ordinal)
     {
-        "dis", "C", "S", "CP"
+        "cs", "cp", "dis"
     };
 
     public static SessionNamingOptions Create(string? monthYear, string? phase)
     {
         if (string.IsNullOrWhiteSpace(monthYear) ||
-            !Regex.IsMatch(monthYear.Trim(), @"^(0[1-9]|1[0-2])-\d{2}$"))
+            !Regex.IsMatch(monthYear.Trim(), @"^(0[1-9]|1[0-2])-?\d{2}$"))
         {
-            throw new InvalidOperationException("Mes-año debe tener el formato MM-AA, por ejemplo 01-26.");
+            throw new InvalidOperationException("Mes-año debe tener el formato MM-AA o MMAA, por ejemplo 01-26 o 0126.");
         }
 
         if (string.IsNullOrWhiteSpace(phase) || !AllowedPhases.Contains(phase.Trim()))
         {
-            throw new InvalidOperationException("La fase debe ser dis, C, S o CP.");
+            throw new InvalidOperationException("La fase debe ser cs, cp o dis.");
         }
 
         return new SessionNamingOptions(monthYear.Trim().Replace("-", string.Empty), phase.Trim());

@@ -84,10 +84,9 @@
                       Width="76"
                       SelectedIndex="0"
                       SelectionChanged="NamingOption_Changed">
+              <ComboBoxItem Content="cs" />
+              <ComboBoxItem Content="cp" />
               <ComboBoxItem Content="dis" />
-              <ComboBoxItem Content="C" />
-              <ComboBoxItem Content="S" />
-              <ComboBoxItem Content="CP" />
             </ComboBox>
           </StackPanel>
           <ScrollViewer Grid.Row="1"
