@@ -22,17 +22,18 @@ public partial class MainWindow : Window
 
     private async void SelectFilesButton_Click(object? sender, RoutedEventArgs eventArgs)
     {
+        var extension = GetSelectedInputFileType();
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Agregar archivos MATLAB",
+            Title = $"Agregar archivos {extension}",
             AllowMultiple = true,
             FileTypeFilter =
             [
-                new FilePickerFileType("Archivos MATLAB") { Patterns = ["*.mat"] }
+                new FilePickerFileType($"Archivos {extension}") { Patterns = [$"*{extension}"] }
             ]
         });
 
-        AddFiles(files.Select(file => file.TryGetLocalPath()).OfType<string>());
+        AddFiles(files.Select(file => file.TryGetLocalPath()).OfType<string>(), extension);
     }
 
     private void RemoveButton_Click(object? sender, RoutedEventArgs eventArgs)
@@ -110,12 +111,34 @@ public partial class MainWindow : Window
             return;
         }
 
-        CreateButton.IsEnabled = false;
+        SessionNamingOptions namingOptions;
         try
         {
-            var preview = await Task.Run(() => MatOrganizerService.BuildRecords(_outputDirectory, _entries, copyOptions));
+            namingOptions = SessionNamingOptions.Create(MonthYearTextBox.Text, GetSelectedPhase());
+        }
+        catch (InvalidOperationException exception)
+        {
+            StatusText.Text = exception.Message;
+            return;
+        }
+
+        CreateButton.IsEnabled = false;
+        ProgressPanel.IsVisible = true;
+        CurrentFileProgressBar.Value = 0;
+        TotalProgressBar.Value = 0;
+        CurrentFileProgressText.Text = "Preparando la copia…";
+        TotalProgressText.Text = "Progreso total: 0%";
+        try
+        {
+            var preview = await Task.Run(() => MatOrganizerService.BuildRecords(_outputDirectory, _entries, namingOptions, copyOptions));
             StatusText.Text = $"Copiando {preview.Count} archivo(s); los videos pueden tardar…";
-            var result = await Task.Run(() => MatOrganizerService.CreateCopiesAndManifest(_outputDirectory, _entries, copyOptions));
+            var progress = new Progress<CopyProgress>(UpdateCopyProgress);
+            var result = await MatOrganizerService.CreateCopiesAndManifestAsync(
+                _outputDirectory,
+                _entries,
+                namingOptions,
+                copyOptions,
+                progress);
             StatusText.Text = $"Listo: {result.MatCount} .mat, {result.Mp4Count} .mp4, {result.MkvCount} .mkv y relación_renombrado.xlsx creados.";
         }
         catch (Exception exception)
@@ -147,6 +170,24 @@ public partial class MainWindow : Window
 
         UpdateButtons();
     }
+
+    private void InputFileTypeComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs eventArgs)
+    {
+        if (SelectFilesButton is null || CopyMatCheckBox is null || CopyMp4CheckBox is null || CopyMkvCheckBox is null)
+        {
+            return;
+        }
+
+        var extension = GetSelectedInputFileType();
+        SelectFilesButton.Content = $"Agregar archivos {extension}…";
+        CopyMatCheckBox.IsChecked = extension == ".mat";
+        CopyMp4CheckBox.IsChecked = extension == ".mp4";
+        CopyMkvCheckBox.IsChecked = extension == ".mkv";
+        StatusText.Text = $"Selecciona archivos {extension}; puedes marcar más tipos abajo si también quieres copiar sus archivos con el mismo nombre.";
+        UpdateButtons();
+    }
+
+    private void NamingOption_Changed(object? sender, RoutedEventArgs eventArgs) => UpdateButtons();
 
     private void Slot_PointerPressed(object? sender, PointerPressedEventArgs eventArgs)
     {
@@ -197,11 +238,11 @@ public partial class MainWindow : Window
         RefreshView();
     }
 
-    private void AddFiles(IEnumerable<string> paths)
+    private void AddFiles(IEnumerable<string> paths, string selectedExtension)
     {
         var added = 0;
         var automaticallyAssigned = 0;
-        foreach (var path in paths.Where(path => string.Equals(Path.GetExtension(path), ".mat", StringComparison.OrdinalIgnoreCase)))
+        foreach (var path in paths.Where(path => string.Equals(Path.GetExtension(path), selectedExtension, StringComparison.OrdinalIgnoreCase)))
         {
             if (_entries.Any(entry => string.Equals(entry.SourcePath, path, StringComparison.OrdinalIgnoreCase)))
             {
@@ -227,7 +268,7 @@ public partial class MainWindow : Window
         {
             StatusText.Text = automaticallyAssigned > 0
                 ? $"Se agregaron {added} archivo(s); {automaticallyAssigned} se asignaron automáticamente por su nombre."
-                : $"Se agregaron {added} archivo(s) .mat.";
+                : $"Se agregaron {added} archivo(s) {selectedExtension}.";
             RefreshView();
         }
     }
@@ -311,16 +352,59 @@ public partial class MainWindow : Window
 
     private void UpdateButtons()
     {
+        if (UnassignedListBox is null || DeselectButton is null || RemoveButton is null ||
+            CreateButton is null || CopyMatCheckBox is null || CopyMp4CheckBox is null ||
+            CopyMkvCheckBox is null || MonthYearTextBox is null || PhaseComboBox is null)
+        {
+            return;
+        }
+
         var hasSelectedEntry = UnassignedListBox.SelectedItem is MatFileEntry;
         DeselectButton.IsEnabled = hasSelectedEntry;
         RemoveButton.IsEnabled = hasSelectedEntry;
         CreateButton.IsEnabled = _outputDirectory is not null &&
                                  _entries.Any(entry => entry.Slot is not null) &&
-                                 GetCopyOptions().HasSelectedTypes;
+                                 GetCopyOptions().HasSelectedTypes &&
+                                 SessionNamingOptions.IsValid(MonthYearTextBox?.Text, GetSelectedPhase());
     }
 
     private CopyOptions GetCopyOptions() => new(
         CopyMatCheckBox.IsChecked == true,
         CopyMp4CheckBox.IsChecked == true,
         CopyMkvCheckBox.IsChecked == true);
+
+    private string GetSelectedInputFileType() =>
+        (InputFileTypeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? ".mat";
+
+    private string GetSelectedPhase() =>
+        (PhaseComboBox?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? string.Empty;
+
+    private void UpdateCopyProgress(CopyProgress progress)
+    {
+        var currentPercent = progress.CurrentFileLength == 0
+            ? 100d
+            : progress.CurrentFileBytes * 100d / progress.CurrentFileLength;
+        var totalPercent = progress.TotalBytes == 0
+            ? 100d
+            : progress.CompletedBytes * 100d / progress.TotalBytes;
+
+        CurrentFileProgressBar.Value = currentPercent;
+        TotalProgressBar.Value = totalPercent;
+        CurrentFileProgressText.Text = $"Archivo {progress.CurrentFileNumber} de {progress.TotalFiles}: {progress.CurrentFileName} ({FormatBytes(progress.CurrentFileBytes)} de {FormatBytes(progress.CurrentFileLength)})";
+        TotalProgressText.Text = $"Progreso total: {progress.CompletedFiles} de {progress.TotalFiles} archivo(s) · {FormatBytes(progress.CompletedBytes)} de {FormatBytes(progress.TotalBytes)}";
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        var value = (double)bytes;
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+
+        return $"{value:0.##} {units[unit]}";
+    }
 }

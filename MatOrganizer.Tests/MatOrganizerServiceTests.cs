@@ -23,13 +23,14 @@ public sealed class MatOrganizerServiceTests : IDisposable
             [
                 new MatFileEntry(namedSource) { Slot = new ProtocolSlot(1, 1) },
                 new MatFileEntry(unnamedSource) { Slot = new ProtocolSlot(2, 1) }
-            ]);
+            ],
+            SessionNamingOptions.Create("05-26", "dis"));
 
         Assert.Equal(2, result.FileCount);
         Assert.Equal(namedBytes, File.ReadAllBytes(namedSource));
         Assert.Equal(unnamedBytes, File.ReadAllBytes(unnamedSource));
-        Assert.Equal(namedBytes, File.ReadAllBytes(Path.Combine(outputDirectory, "exp_d1r1.mat")));
-        Assert.Equal(unnamedBytes, File.ReadAllBytes(Path.Combine(outputDirectory, "registro_d2r1.mat")));
+        Assert.Equal(namedBytes, File.ReadAllBytes(Path.Combine(outputDirectory, "exp_0526_dis_d1r1.mat")));
+        Assert.Equal(unnamedBytes, File.ReadAllBytes(Path.Combine(outputDirectory, "exp_0526_dis_d2r1.mat")));
         Assert.True(File.Exists(result.ManifestPath));
 
         using var workbook = new XLWorkbook(result.ManifestPath);
@@ -37,7 +38,7 @@ public sealed class MatOrganizerServiceTests : IDisposable
         Assert.Equal("Archivo original", sheet.Cell(1, 1).GetString());
         Assert.Equal("Archivo nuevo", sheet.Cell(1, 2).GetString());
         Assert.Equal("exp_d2r1.mat", sheet.Cell(2, 1).GetString());
-        Assert.Equal("exp_d1r1.mat", sheet.Cell(2, 2).GetString());
+        Assert.Equal("exp_0526_dis_d1r1.mat", sheet.Cell(2, 2).GetString());
         Assert.Equal(1, sheet.Cell(2, 3).GetValue<int>());
         Assert.Equal(1, sheet.Cell(2, 4).GetValue<int>());
         Assert.Equal("MAT", sheet.Cell(2, 5).GetString());
@@ -59,6 +60,7 @@ public sealed class MatOrganizerServiceTests : IDisposable
         var result = MatOrganizerService.CreateCopiesAndManifest(
             outputDirectory,
             [new MatFileEntry(matPath) { Slot = new ProtocolSlot(1, 4) }],
+            SessionNamingOptions.Create("05-26", "dis"),
             new CopyOptions(IncludeMat: true, IncludeMp4: true, IncludeMkv: true));
 
         Assert.Equal(3, result.FileCount);
@@ -90,11 +92,12 @@ public sealed class MatOrganizerServiceTests : IDisposable
         var records = MatOrganizerService.BuildRecords(
             outputDirectory,
             [new MatFileEntry(matPath) { Slot = new ProtocolSlot(1, 1) }],
+            SessionNamingOptions.Create("05-26", "CP"),
             new CopyOptions(IncludeMat: false, IncludeMp4: true, IncludeMkv: true));
 
         var record = Assert.Single(records);
         Assert.Equal(mp4Path, record.SourcePath);
-        Assert.Equal(Path.Combine(outputDirectory, "exp_d1r1.mp4"), record.DestinationPath);
+        Assert.Equal(Path.Combine(outputDirectory, "exp_0526_CP_d1r1.mp4"), record.DestinationPath);
     }
 
     [Fact]
@@ -108,6 +111,7 @@ public sealed class MatOrganizerServiceTests : IDisposable
         var exception = Assert.Throws<InvalidOperationException>(() => MatOrganizerService.BuildRecords(
             outputDirectory,
             [new MatFileEntry(matPath) { Slot = new ProtocolSlot(1, 1) }],
+            SessionNamingOptions.Create("05-26", "CP"),
             new CopyOptions(IncludeMat: false, IncludeMp4: true, IncludeMkv: true)));
 
         Assert.Contains("No se encontraron", exception.Message);
@@ -124,11 +128,57 @@ public sealed class MatOrganizerServiceTests : IDisposable
         Assert.Equal(new ProtocolSlot(expectedDay, expectedRat), slot);
     }
 
+    [Fact]
+    public async Task CreateCopiesAndManifestAsync_renames_a_directly_selected_video_and_reports_byte_progress()
+    {
+        var sourceDirectory = Directory.CreateDirectory(Path.Combine(_temporaryDirectory, "origen")).FullName;
+        var outputDirectory = Directory.CreateDirectory(Path.Combine(_temporaryDirectory, "salida")).FullName;
+        var videoPath = Path.Combine(sourceDirectory, "cualquier_nombre.mp4");
+        var videoBytes = new byte[1_500_000];
+        videoBytes[^1] = 42;
+        File.WriteAllBytes(videoPath, videoBytes);
+        var progressUpdates = new List<CopyProgress>();
+
+        var result = await MatOrganizerService.CreateCopiesAndManifestAsync(
+            outputDirectory,
+            [new MatFileEntry(videoPath) { Slot = new ProtocolSlot(3, 2) }],
+            SessionNamingOptions.Create("01-26", "S"),
+            new CopyOptions(IncludeMat: false, IncludeMp4: true, IncludeMkv: false),
+            new InlineProgress<CopyProgress>(progressUpdates.Add));
+
+        Assert.Equal(1, result.Mp4Count);
+        Assert.Equal(videoBytes, File.ReadAllBytes(Path.Combine(outputDirectory, "exp_0126_S_d3r2.mp4")));
+        Assert.Equal(videoBytes, File.ReadAllBytes(videoPath));
+        Assert.NotEmpty(progressUpdates);
+        Assert.All(progressUpdates, update => Assert.Equal(videoBytes.Length, update.TotalBytes));
+        Assert.True(progressUpdates.Zip(progressUpdates.Skip(1), (first, second) => second.CompletedBytes >= first.CompletedBytes).All(value => value));
+        var finalUpdate = progressUpdates.Last();
+        Assert.Equal(videoBytes.Length, finalUpdate.CompletedBytes);
+        Assert.Equal(1, finalUpdate.CompletedFiles);
+        Assert.Equal(1, finalUpdate.TotalFiles);
+    }
+
+    [Theory]
+    [InlineData("01-26", "dis", "0126", "dis")]
+    [InlineData("10-22", "CP", "1022", "CP")]
+    public void SessionNamingOptions_normalizes_the_period_without_the_hyphen(string monthYear, string phase, string expectedPeriod, string expectedPhase)
+    {
+        var naming = SessionNamingOptions.Create(monthYear, phase);
+
+        Assert.Equal(expectedPeriod, naming.Period);
+        Assert.Equal(expectedPhase, naming.Phase);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_temporaryDirectory))
         {
             Directory.Delete(_temporaryDirectory, recursive: true);
         }
+    }
+
+    private sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
     }
 }

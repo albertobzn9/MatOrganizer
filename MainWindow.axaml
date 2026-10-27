@@ -11,7 +11,7 @@
     <StackPanel Spacing="5">
       <TextBlock FontSize="30" FontWeight="SemiBold" Text="MatOrganizer" />
       <TextBlock Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                 Text="Organiza sesiones por día y rata, crea copias .mat y opcionalmente sus videos con el nombre corregido, y genera su relación en Excel." />
+                 Text="Organiza sesiones por día y rata, crea copias .mat, .mp4 o .mkv con un nombre estándar y genera su relación en Excel." />
     </StackPanel>
 
     <Border Grid.Row="1"
@@ -21,7 +21,7 @@
             BorderThickness="1"
             CornerRadius="8">
       <TextBlock TextWrapping="Wrap"
-                 Text="1. Carga los archivos .mat.  2. Selecciona un archivo de la lista y haz clic en su celda Día–Rata.  3. Elige qué tipos copiar y una carpeta de salida. Los originales nunca se modifican." />
+                 Text="1. Elige el tipo de archivo y cárgalo.  2. Selecciona un archivo de la lista y haz clic en su celda Día–Rata.  3. Indica mes-año, fase, tipos a copiar y una carpeta de salida. Los originales nunca se modifican." />
     </Border>
 
     <Grid Grid.Row="2" ColumnDefinitions="300,*" ColumnSpacing="16">
@@ -43,7 +43,18 @@
             </ListBox.Styles>
           </ListBox>
           <StackPanel Grid.Row="2" Spacing="8">
-            <Button Click="SelectFilesButton_Click" Content="Agregar archivos .mat…" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock VerticalAlignment="Center" Text="Agregar:" />
+              <ComboBox x:Name="InputFileTypeComboBox"
+                        Width="90"
+                        SelectedIndex="0"
+                        SelectionChanged="InputFileTypeComboBox_SelectionChanged">
+                <ComboBoxItem Content=".mat" />
+                <ComboBoxItem Content=".mp4" />
+                <ComboBoxItem Content=".mkv" />
+              </ComboBox>
+            </StackPanel>
+            <Button x:Name="SelectFilesButton" Click="SelectFilesButton_Click" Content="Agregar archivos .mat…" />
             <Button x:Name="DeselectButton" Click="DeselectButton_Click" Content="Deseleccionar" />
             <Button x:Name="RemoveButton" Click="RemoveButton_Click" Content="Quitar de la lista" />
           </StackPanel>
@@ -62,6 +73,22 @@
             <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="Ratas:" />
             <TextBox x:Name="RatCountTextBox" Width="55" Text="1" />
             <Button Click="UpdateGridButton_Click" Content="Actualizar cuadrícula" />
+            <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="Mes-año:" />
+            <TextBox x:Name="MonthYearTextBox"
+                     Width="70"
+                     Background="{DynamicResource SystemControlHighlightAltLowBrush}"
+                     PlaceholderText="01-26"
+                     TextChanged="NamingOption_Changed" />
+            <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="Fase:" />
+            <ComboBox x:Name="PhaseComboBox"
+                      Width="76"
+                      SelectedIndex="0"
+                      SelectionChanged="NamingOption_Changed">
+              <ComboBoxItem Content="dis" />
+              <ComboBoxItem Content="C" />
+              <ComboBoxItem Content="S" />
+              <ComboBoxItem Content="CP" />
+            </ComboBox>
           </StackPanel>
           <ScrollViewer Grid.Row="1"
                         HorizontalScrollBarVisibility="Auto"
@@ -72,7 +99,7 @@
       </Border>
     </Grid>
 
-    <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10" RowDefinitions="Auto,Auto,Auto" RowSpacing="9">
+    <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="9">
       <StackPanel Orientation="Horizontal" Spacing="12">
         <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="Copiar:" />
         <CheckBox x:Name="CopyMatCheckBox" IsChecked="True" IsCheckedChanged="CopyOption_IsCheckedChanged" Content=".mat" />
@@ -94,6 +121,12 @@
                  Grid.ColumnSpan="3"
                  FontWeight="SemiBold"
                  TextWrapping="Wrap" />
+      <StackPanel x:Name="ProgressPanel" Grid.Row="3" Grid.ColumnSpan="3" Spacing="4" IsVisible="False">
+        <TextBlock x:Name="CurrentFileProgressText" TextWrapping="Wrap" />
+        <ProgressBar x:Name="CurrentFileProgressBar" Height="18" Minimum="0" Maximum="100" ShowProgressText="True" ProgressTextFormat="{}{1:0}%" />
+        <TextBlock x:Name="TotalProgressText" TextWrapping="Wrap" />
+        <ProgressBar x:Name="TotalProgressBar" Height="18" Minimum="0" Maximum="100" ShowProgressText="True" ProgressTextFormat="{}{1:0}%" />
+      </StackPanel>
     </Grid>
   </Grid>
 </Window>

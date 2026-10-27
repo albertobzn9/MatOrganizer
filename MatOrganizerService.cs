@@ -24,11 +24,55 @@ internal sealed record RenameRecord(
     string DestinationPath,
     ProtocolSlot Slot);
 
+internal sealed record SessionNamingOptions(string Period, string Phase)
+{
+    private static readonly HashSet<string> AllowedPhases = new(StringComparer.Ordinal)
+    {
+        "dis", "C", "S", "CP"
+    };
+
+    public static SessionNamingOptions Create(string? monthYear, string? phase)
+    {
+        if (string.IsNullOrWhiteSpace(monthYear) ||
+            !Regex.IsMatch(monthYear.Trim(), @"^(0[1-9]|1[0-2])-\d{2}$"))
+        {
+            throw new InvalidOperationException("Mes-año debe tener el formato MM-AA, por ejemplo 01-26.");
+        }
+
+        if (string.IsNullOrWhiteSpace(phase) || !AllowedPhases.Contains(phase.Trim()))
+        {
+            throw new InvalidOperationException("La fase debe ser dis, C, S o CP.");
+        }
+
+        return new SessionNamingOptions(monthYear.Trim().Replace("-", string.Empty), phase.Trim());
+    }
+
+    public static bool IsValid(string? monthYear, string? phase)
+    {
+        try
+        {
+            _ = Create(monthYear, phase);
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+}
+
 internal sealed record CopyOptions(bool IncludeMat, bool IncludeMp4, bool IncludeMkv)
 {
     public static CopyOptions MatOnly { get; } = new(IncludeMat: true, IncludeMp4: false, IncludeMkv: false);
 
     public bool HasSelectedTypes => IncludeMat || IncludeMp4 || IncludeMkv;
+
+    public IReadOnlyList<string> SelectedExtensions =>
+        [
+            ..(IncludeMat ? new[] { ".mat" } : []),
+            ..(IncludeMp4 ? new[] { ".mp4" } : []),
+            ..(IncludeMkv ? new[] { ".mkv" } : [])
+        ];
 }
 
 internal sealed record RenameResult(
@@ -37,6 +81,16 @@ internal sealed record RenameResult(
     int MatCount,
     int Mp4Count,
     int MkvCount);
+
+internal sealed record CopyProgress(
+    long CompletedBytes,
+    long TotalBytes,
+    int CompletedFiles,
+    int TotalFiles,
+    int CurrentFileNumber,
+    string CurrentFileName,
+    long CurrentFileBytes,
+    long CurrentFileLength);
 
 internal static partial class MatOrganizerService
 {
@@ -63,9 +117,21 @@ internal static partial class MatOrganizerService
     public static RenameResult CreateCopiesAndManifest(
         string outputDirectory,
         IReadOnlyCollection<MatFileEntry> entries,
-        CopyOptions? copyOptions = null)
+        SessionNamingOptions namingOptions,
+        CopyOptions? copyOptions = null) =>
+        CreateCopiesAndManifestAsync(outputDirectory, entries, namingOptions, copyOptions)
+            .GetAwaiter()
+            .GetResult();
+
+    public static async Task<RenameResult> CreateCopiesAndManifestAsync(
+        string outputDirectory,
+        IReadOnlyCollection<MatFileEntry> entries,
+        SessionNamingOptions namingOptions,
+        CopyOptions? copyOptions = null,
+        IProgress<CopyProgress>? progress = null,
+        CancellationToken cancellationToken = default)
     {
-        var records = BuildRecords(outputDirectory, entries, copyOptions);
+        var records = BuildRecords(outputDirectory, entries, namingOptions, copyOptions);
         var manifestPath = Path.Combine(outputDirectory, ManifestFileName);
         if (File.Exists(manifestPath))
         {
@@ -75,18 +141,32 @@ internal static partial class MatOrganizerService
         var temporaryFiles = new List<string>();
         var completedFiles = new List<string>();
         var temporaryManifest = Path.Combine(outputDirectory, $".matrename-{Guid.NewGuid():N}.xlsx");
+        var fileLengths = records.Select(record => new FileInfo(record.SourcePath).Length).ToList();
+        var totalBytes = fileLengths.Sum();
+        long completedBytes = 0;
 
         try
         {
             WriteManifest(temporaryManifest, records);
 
-            foreach (var record in records)
+            for (var index = 0; index < records.Count; index++)
             {
+                var record = records[index];
                 var temporaryCopy = Path.Combine(
                     outputDirectory,
                     $".{Path.GetFileName(record.DestinationPath)}.{Guid.NewGuid():N}.tmp");
-                File.Copy(record.SourcePath, temporaryCopy);
                 temporaryFiles.Add(temporaryCopy);
+                await CopyFileAsync(
+                    record,
+                    temporaryCopy,
+                    completedBytes,
+                    totalBytes,
+                    index,
+                    records.Count,
+                    fileLengths[index],
+                    progress,
+                    cancellationToken);
+                completedBytes += fileLengths[index];
             }
 
             for (var index = 0; index < records.Count; index++)
@@ -122,6 +202,7 @@ internal static partial class MatOrganizerService
     public static IReadOnlyList<RenameRecord> BuildRecords(
         string outputDirectory,
         IReadOnlyCollection<MatFileEntry> entries,
+        SessionNamingOptions namingOptions,
         CopyOptions? copyOptions = null)
     {
         if (string.IsNullOrWhiteSpace(outputDirectory) || !Directory.Exists(outputDirectory))
@@ -148,7 +229,7 @@ internal static partial class MatOrganizerService
         }
 
         var records = assignedEntries
-            .SelectMany(entry => BuildRecordsForEntry(outputDirectory, entry, selectedOptions))
+            .SelectMany(entry => BuildRecordsForEntry(outputDirectory, entry, namingOptions, selectedOptions))
             .OrderBy(record => record.Slot.Rat)
             .ThenBy(record => record.Slot.Day)
             .ThenBy(record => Path.GetExtension(record.SourcePath), StringComparer.OrdinalIgnoreCase)
@@ -179,28 +260,28 @@ internal static partial class MatOrganizerService
     private static IEnumerable<RenameRecord> BuildRecordsForEntry(
         string outputDirectory,
         MatFileEntry entry,
+        SessionNamingOptions namingOptions,
         CopyOptions copyOptions)
     {
         var sourcePaths = new List<string>();
-        if (copyOptions.IncludeMat)
+        foreach (var extension in copyOptions.SelectedExtensions)
         {
-            sourcePaths.Add(entry.SourcePath);
+            if (string.Equals(Path.GetExtension(entry.SourcePath), extension, StringComparison.OrdinalIgnoreCase))
+            {
+                sourcePaths.Add(entry.SourcePath);
+            }
+            else
+            {
+                AddCompanionFile(entry.SourcePath, extension, sourcePaths);
+            }
         }
 
-        if (copyOptions.IncludeMp4)
-        {
-            AddCompanionFile(entry.SourcePath, ".mp4", sourcePaths);
-        }
-
-        if (copyOptions.IncludeMkv)
-        {
-            AddCompanionFile(entry.SourcePath, ".mkv", sourcePaths);
-        }
-
-        return sourcePaths.Select(sourcePath => new RenameRecord(
-            sourcePath,
-            Path.Combine(outputDirectory, BuildFileName(Path.GetFileName(sourcePath), entry.Slot!)),
-            entry.Slot!));
+        return sourcePaths
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(sourcePath => new RenameRecord(
+                sourcePath,
+                Path.Combine(outputDirectory, BuildFileName(Path.GetFileName(sourcePath), entry.Slot!, namingOptions)),
+                entry.Slot!));
     }
 
     private static void AddCompanionFile(string matPath, string extension, ICollection<string> sourcePaths)
@@ -223,15 +304,70 @@ internal static partial class MatOrganizerService
         }
     }
 
-    private static string BuildFileName(string sourceFileName, ProtocolSlot slot)
+    private static string BuildFileName(string sourceFileName, ProtocolSlot slot, SessionNamingOptions namingOptions)
     {
         var extension = Path.GetExtension(sourceFileName);
-        var baseName = Path.GetFileNameWithoutExtension(sourceFileName);
-        var identifier = $"d{slot.Day}r{slot.Rat}";
-        var newBaseName = IdentifierPattern().IsMatch(baseName)
-            ? IdentifierPattern().Replace(baseName, identifier, count: 1)
-            : $"{baseName}_{identifier}";
-        return $"{newBaseName}{extension}";
+        return $"exp_{namingOptions.Period}_{namingOptions.Phase}_d{slot.Day}r{slot.Rat}{extension}";
+    }
+
+    private static async Task CopyFileAsync(
+        RenameRecord record,
+        string temporaryCopy,
+        long completedBytesBeforeFile,
+        long totalBytes,
+        int fileIndex,
+        int totalFiles,
+        long fileLength,
+        IProgress<CopyProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        const int bufferSize = 1024 * 1024;
+        long copiedBytes = 0;
+
+        void Report(int completedFiles) => progress?.Report(new CopyProgress(
+            completedBytesBeforeFile + copiedBytes,
+            totalBytes,
+            completedFiles,
+            totalFiles,
+            fileIndex + 1,
+            Path.GetFileName(record.SourcePath),
+            copiedBytes,
+            fileLength));
+
+        Report(fileIndex);
+        await using var source = new FileStream(record.SourcePath, new FileStreamOptions
+        {
+            Mode = FileMode.Open,
+            Access = FileAccess.Read,
+            Share = FileShare.Read,
+            BufferSize = bufferSize,
+            Options = FileOptions.Asynchronous | FileOptions.SequentialScan
+        });
+        await using var destination = new FileStream(temporaryCopy, new FileStreamOptions
+        {
+            Mode = FileMode.CreateNew,
+            Access = FileAccess.Write,
+            Share = FileShare.None,
+            BufferSize = bufferSize,
+            Options = FileOptions.Asynchronous
+        });
+
+        var buffer = new byte[bufferSize];
+        while (true)
+        {
+            var bytesRead = await source.ReadAsync(buffer, cancellationToken);
+            if (bytesRead == 0)
+            {
+                break;
+            }
+
+            await destination.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+            copiedBytes += bytesRead;
+            Report(fileIndex);
+        }
+
+        await destination.FlushAsync(cancellationToken);
+        Report(fileIndex + 1);
     }
 
     private static void WriteManifest(string path, IReadOnlyList<RenameRecord> records)
